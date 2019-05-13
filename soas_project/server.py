@@ -1,13 +1,14 @@
 from mesa.visualization.ModularVisualization import ModularServer
 from mesa.visualization.modules import CanvasGrid
 
-from .model import CityModel, Grass, Walker
-from .utils import getShortestPaths
+from .model import CityModel, Grass, Walker, Passenger
+from .utils import getRoads
+from mesa.visualization.UserParam import UserSettableParameter
 
 
 def agent_draw(agent):
     portrayal = {
-            "Shape": "rect",
+            "Shape": "circle",
             "Filled": "true",
             "Layer": 0,
             "Color": ["#808080", "#737373", "#666666"],
@@ -16,6 +17,16 @@ def agent_draw(agent):
         }
     if agent is None:
         pass
+
+    elif isinstance(agent, Passenger):
+        portrayal = {
+            "Shape": "rect",
+            "Filled": "true",
+            "Layer": 1,
+            "Color": ["#3399ff", "#1a8cff", "#0080ff"],
+            "w": 1,
+            "h": 1
+        }
     elif isinstance(agent, Grass):
         portrayal = {
             "Shape": "rect",
@@ -50,36 +61,6 @@ def agent_draw(agent):
 
     return portrayal
 
-
-def getRoads(city_map, height, width):
-    city_roads = {}
-    city_blocks = []
-
-    for idx_line, line in enumerate(city_map):
-        for idx_col, cell in enumerate(line):
-            pos = (idx_line, (height - 1) - idx_col)
-            if (cell == '0'):
-                neighbors = set()
-                for next_pos in [(0,-1), (-1, 0), (1,0), (0,1)]:
-                    node_position = (pos[0] + next_pos[0], pos[1] + next_pos[1])
-                    
-                    if node_position[0] > width - 1 or node_position[0] < 0 or \
-                       node_position[1] > height - 1 or node_position[1] < 0:
-                        continue
-
-                    if city_map[node_position[0]][node_position[1]] != '0':
-                        continue
-
-                    neighbors.add(node_position)
-                
-                city_roads[pos] = neighbors
-            else:
-                city_blocks.append(pos)
-
-    routes = getShortestPaths(city_roads)
-
-    return city_roads, city_blocks, routes
-
 def launch_city_model():
     city_map = []
 
@@ -96,12 +77,18 @@ def launch_city_model():
     num_agents = 6
     pixel_ratio = 40
 
-    city_roads, city_blocks, routes = getRoads(city_map, height, width)
+    city_roads, city_blocks, passenger_blocks, routes = getRoads(city_map, height, width)
+
+    n_slider = UserSettableParameter('slider', "Number of Cabs", 5, 1, 10, 1)
+
+    passenger_population = UserSettableParameter('slider', "Passenger Population", .1, 0, 1, .05)
+
+    passenger_pooling = UserSettableParameter('slider', "Passenger Pooling %", .5, 0, 1, .1)
 
     grid = CanvasGrid(agent_draw, width, height,
                       width * pixel_ratio, height * pixel_ratio)
     server = ModularServer(CityModel, [grid], "SOAS Project - Rafael Bianchi",
-                           {"N": num_agents, "width": width, "height": height, "city_map": city_map, "roads": city_roads, "city_blocks": city_blocks, "routes": routes})
+                           {"N": n_slider, "PassengerPopulation":passenger_population, "PassengerPooling": passenger_pooling, "PassengerBlocks": passenger_blocks, "width": width, "height": height, "city_map": city_map, "roads": city_roads, "city_blocks": city_blocks, "routes": routes})
     server.max_steps = 0
     server.port = 8521
     server.launch()
