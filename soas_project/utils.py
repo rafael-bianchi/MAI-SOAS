@@ -40,7 +40,7 @@ def getShortestPaths(city_roads):
 def getRoads(city_map, height, width):
     city_roads = {}
     city_blocks = []
-    passenger_blocks = []
+    passenger_blocks = {}
 
     for idx_line, line in enumerate(city_map):
         for idx_col, cell in enumerate(line):
@@ -61,7 +61,7 @@ def getRoads(city_map, height, width):
                 
                 city_roads[pos] = neighbors
             else:
-                countroadsaround = 0
+                blocks_around = []
                 for next_pos in [(0,-1), (-1, 0), (1,0), (0,1)]:
                     node_position = (pos[0] + next_pos[0], pos[1] + next_pos[1])
                     
@@ -72,11 +72,13 @@ def getRoads(city_map, height, width):
                     if city_map[node_position[0]][node_position[1]] != '0':
                         continue
 
-                    countroadsaround = countroadsaround + 1
+                    blocks_around.append(node_position)
                 
-                city_blocks.append(pos)
-                if(countroadsaround == 1):
-                    passenger_blocks.append(pos)
+                isCenterBlock = len(blocks_around) == 0 
+                city_blocks.append((pos, isCenterBlock))
+                
+                if(len(blocks_around) == 1):
+                    passenger_blocks[pos]= blocks_around[0]
                 
     routes = getShortestPaths(city_roads)
 

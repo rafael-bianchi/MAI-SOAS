@@ -1,51 +1,58 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.modules import CanvasGrid
+from mesa.visualization.modules import CanvasGrid, ChartModule
 
-from .model import CityModel, Grass, Walker, Passenger
+from .model import CityModel, Grass, Cab, Passenger
 from .utils import getRoads
 from mesa.visualization.UserParam import UserSettableParameter
 
 
 def agent_draw(agent):
     portrayal = {
-            "Shape": "circle",
-            "Filled": "true",
-            "Layer": 0,
-            "Color": ["#808080", "#737373", "#666666"],
-            "w": 1,
-            "h": 1
+            "text_color": "white",
         }
     if agent is None:
         pass
 
     elif isinstance(agent, Passenger):
+        icon = "resources/images/taxi_passenger.png"
+        
+        if(agent.isCarPooler):
+            icon = "resources/images/taxi_passenger_blue.png"
+
         portrayal = {
-            "Shape": "rect",
-            "Filled": "true",
+            "Shape": icon,
             "Layer": 1,
-            "Color": ["#3399ff", "#1a8cff", "#0080ff"],
-            "w": 1,
-            "h": 1
+            "IsCarPooler": agent.isCarPooler,
+            "text": agent.time_waiting,
+            "scale": .9
         }
     elif isinstance(agent, Grass):
+        color =  ["#808080", "#8c8c8c", "#999999"]
+        if (agent.isBlockCenter):
+            color = ["#00FF00", "#00CC00", "#009900"]
+
         portrayal = {
             "Shape": "rect",
             "Filled": "true",
             "Layer": 0,
-            "Color": ["#00FF00", "#00CC00", "#009900"],
+            "Color": color,
             "w": 1,
             "h": 1
         }
-    elif isinstance(agent, Walker):
+    elif isinstance(agent, Cab):
+        icon = "resources/images/taxi_yellow.png"
+        
+        if(not agent.is_empty):
+            if(agent.car_pooling):
+                icon = "resources/images/taxi_blue.png"
+            else:
+                icon = "resources/images/taxi.png"
+
         portrayal = {
-            "Shape": "arrowHead",
+            "Shape": icon,
             "Layer": 1,
-            "Color": ["#0066ff", "#005ce6"],
-            "stroke_color": "#666666",
-            "Filled": "true",
-            "heading_x": agent.heading[0],
-            "heading_y": agent.heading[1],
-            "text": agent.unique_id,
+            "unique_id": agent.unique_id,
+            "text": len(agent.passengers),
             "text_color": "white",
             "scale": 0.8
         }
@@ -75,7 +82,8 @@ def launch_city_model():
     width = len(city_map[0])
 
     num_agents = 6
-    pixel_ratio = 40
+    pixel_ratio = 5
+
 
     city_roads, city_blocks, passenger_blocks, routes = getRoads(city_map, height, width)
 
@@ -85,9 +93,17 @@ def launch_city_model():
 
     passenger_pooling = UserSettableParameter('slider', "Passenger Pooling %", .5, 0, 1, .1)
 
+    # grid = CanvasGrid(agent_draw, width, height,
+                    #   width * pixel_ratio, height * pixel_ratio)
+
     grid = CanvasGrid(agent_draw, width, height,
-                      width * pixel_ratio, height * pixel_ratio)
-    server = ModularServer(CityModel, [grid], "SOAS Project - Rafael Bianchi",
+                      500, 500)
+
+    chart_element = ChartModule([{"Label": "Normal Passenger", "Color": "#000000"},
+                             {"Label": "Pooling Passenger", "Color": "#00cc00"},
+                             {"Label": "Average", "Color": "#0000ff"}])
+
+    server = ModularServer(CityModel, [grid, chart_element], "SOAS Project - Rafael Bianchi",
                            {"N": n_slider, "PassengerPopulation":passenger_population, "PassengerPooling": passenger_pooling, "PassengerBlocks": passenger_blocks, "width": width, "height": height, "city_map": city_map, "roads": city_roads, "city_blocks": city_blocks, "routes": routes})
     server.max_steps = 0
     server.port = 8521
