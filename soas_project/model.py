@@ -99,7 +99,8 @@ class Cab(Agent):
         self.pos = nextPos
 
     def drop_passenger(self):
-        self.passengers.pop(0)
+        print(f'Dropping passenger {self.passengers[0].unique_id} with destination to {self.passengers[0]} on {self.pos}')
+        temp = self.passengers.pop(0)
 
         if(not self.is_empty):
             self.destination = self.passengers[0].destination
@@ -120,7 +121,7 @@ class Cab(Agent):
 
     def pickup_passenger(self, passenger):
         self.passengers.append(passenger)
-        self.destination = passenger.destination
+        self.destination = self.passengers[0].destination
 
         if (len(self.passengers) > 1):
             self.prioritize_passenger_order()
@@ -226,6 +227,11 @@ class CityModel(Model):
 
             possible_destinations = list(destinations - set([pos]))
             destination = self.random.choice(possible_destinations)
+
+            #Just to find another position wich has a road block different from
+            # the current passenger 
+            while(self.passenger_blocks[destination] == self.passenger_blocks[pos]):
+                destination = self.random.choice(possible_destinations)
 
             isCarPooler = random.random() < self.passenger_pooling
             passenger = Passenger(self.unique_id_counter, self, pos, self.passenger_blocks[destination], isCarPooler)

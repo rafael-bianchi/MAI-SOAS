@@ -100,8 +100,8 @@ def launch_city_model():
                       500, 500)
 
     chart_element = ChartModule([{"Label": "Normal Passenger", "Color": "#000000"},
-                             {"Label": "Pooling Passenger", "Color": "#00cc00"},
-                             {"Label": "Average", "Color": "#0000ff"}])
+                             {"Label": "Pooling Passenger", "Color": "#0033cc"},
+                             {"Label": "Average", "Color": "#990000"}])
 
     server = ModularServer(CityModel, [grid, chart_element], "SOAS Project - Rafael Bianchi",
                            {"N": n_slider, "PassengerPopulation":passenger_population, "PassengerPooling": passenger_pooling, "PassengerBlocks": passenger_blocks, "width": width, "height": height, "city_map": city_map, "roads": city_roads, "city_blocks": city_blocks, "routes": routes})
