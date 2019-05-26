@@ -24,6 +24,7 @@ def agent_draw(agent):
             "Layer": 1,
             "IsCarPooler": agent.isCarPooler,
             "text": agent.time_waiting,
+            "text_color": "red",
             "scale": .9
         }
     elif isinstance(agent, Grass):
@@ -53,7 +54,7 @@ def agent_draw(agent):
             "Layer": 1,
             "unique_id": agent.unique_id,
             "text": len(agent.passengers),
-            "text_color": "white",
+            "text_color": "red",
             "scale": 0.8
         }
     else:

@@ -1,4 +1,5 @@
 import random
+from itertools import permutations
 
 from mesa import Agent, Model
 from mesa.datacollection import DataCollector
@@ -99,7 +100,7 @@ class Cab(Agent):
         self.pos = nextPos
 
     def drop_passenger(self):
-        print(f'Dropping passenger {self.passengers[0].unique_id} with destination to {self.passengers[0]} on {self.pos}')
+        #print(f'Dropping passenger {self.passengers[0].unique_id} with destination to {self.passengers[0]} on {self.pos}')
         temp = self.passengers.pop(0)
 
         if(not self.is_empty):
@@ -132,7 +133,29 @@ class Cab(Agent):
         self.model.grid.remove_agent(passenger)
 
     def prioritize_passenger_order(self):
-        pass
+        perm = permutations(self.passengers)
+
+        min_dist = None
+        best_order = None
+        for p in perm:
+            total_dist = self.get_distance(self.pos, p[0].destination)
+            
+            for i in range(0, len(p) - 1):
+                d = self.get_distance(p[i].destination, p[i+1].destination)
+                total_dist += d
+            
+            if(min_dist == None or total_dist < min_dist):
+                min_dist = total_dist
+                best_order = p
+        
+        self.passengers = list(best_order)
+        self.destination = self.passengers[0].destination
+
+    def get_distance(self, pos1, pos2):
+        if(pos1 == pos2):
+            return 0
+        
+        return self.model.routes[pos1][pos2]["distance"]
 
 def get_average_time_normal_passenger(model):
     normal_passenger = [a.time_waiting for a in model.schedule.agents if isinstance(a, Passenger) and not a.isCarPooler]
