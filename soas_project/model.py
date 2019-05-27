@@ -4,20 +4,53 @@ from itertools import permutations
 from mesa import Agent, Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation
-
+from mesa.time import StagedActivation
+import copy
+import math
 
 class Passenger(Agent):
-    def __init__(self, unique_id, model, pos, destination, isCarPooler):
+    def __init__(self, unique_id, model, pos, destination, road_access, isCarPooler):
         super().__init__(unique_id, model)
         self.pos = pos
         self.time_waiting = 0
         self.destination = destination
         self.isCarPooler = isCarPooler
+        self.road_access = road_access
+
+        self.last_step_executed = False
+        self.set_to_be_removed = False
+
+    def auto_remove(self):
+        if(self.last_step_executed):
+            self.model.schedule.remove(self)
+            self.model.grid.remove_agent(self)
+        else:
+            self.set_to_be_removed = True
 
     def step(self):
         self.time_waiting = self.time_waiting + 1
+        self.last_step_executed = True
+
+        if(self.set_to_be_removed):
+            self.auto_remove()
+
+    #Stage 1
+    def stage_1(self):
+        self.last_step_executed = False
+        pass
     
+    #Stage 2
+    def stage_2(self):
+        pass
+
+    #Stage 3
+    def stage_3(self):
+        pass
+
+    #Stage 4
+    def stage_4(self):
+        pass
+
 class Grass(Agent):
     def __init__(self, unique_id, model, pos, isBlockCenter):
         super().__init__(unique_id, model)
@@ -25,6 +58,22 @@ class Grass(Agent):
         self.isBlockCenter = isBlockCenter
 
     def step(self):
+        pass
+
+    #Stage 1
+    def stage_1(self):
+        pass
+    
+    #Stage 2
+    def stage_2(self):
+        pass
+
+    #Stage 3
+    def stage_3(self):
+        pass
+
+    #Stage 4
+    def stage_4(self):
         pass
 
 class Cab(Agent):
@@ -36,6 +85,7 @@ class Cab(Agent):
         self.destination = pos
         self.passengers = []
         self.car_pooling = False
+        self.sighted_passengers = dict()
 
     @property
     def is_empty(self):
@@ -43,7 +93,7 @@ class Cab(Agent):
 
     @property
     def has_free_seats(self):
-        return self.has_free_seats_normal or self.has_free_seats_normal
+        return self.has_free_seats_normal or self.has_free_seats_car_pooling
 
     @property
     def has_free_seats_car_pooling(self):
@@ -53,41 +103,110 @@ class Cab(Agent):
     def has_free_seats_normal(self):
         return self.is_empty
 
-    def step(self):
+    @property
+    def has_passenger_assigned(self):
+        for passg in self.sighted_passengers.keys():
+            if (self.sighted_passengers[passg] != None and self.sighted_passengers[passg].unique_id == self.unique_id):
+                return True
+
+        return False
+
+    @property
+    def passenger_assigned(self):
+        for passg in self.sighted_passengers.keys():
+            if (self.sighted_passengers[passg] != None and self.sighted_passengers[passg].unique_id == self.unique_id):
+                return passg
+
+        return None
+
+    @property
+    def unasigned_passenger(self):
+        unasigned_passengers = [a for a in self.sighted_passengers.keys() if self.sighted_passengers[a] == None]
+
+        return unasigned_passengers
+
+    def broadcast_sighted_passengers(self, passengers):
+        for p in passengers:
+            if (p not in self.sighted_passengers):
+                self.sighted_passengers[p] = None
+
+    def remove_pickedup(self, passenger):
+        self.sighted_passengers.pop(passenger)
+
+    def broadcast_pickup(self, passenger):
+        self.sighted_passengers.pop(passenger)
+        for agent in [a for a in self.model.schedule.agents if isinstance(a, Cab) and a.unique_id != self.unique_id]:
+            agent.remove_pickedup(passenger)
+
+    #Stage 1
+    def stage_1(self):
+        #print(f'Entering stage 1 - {self.unique_id}')
+        #drop_passengers
+
         #Check if there are passengers to be
         # dropped at the current cab's location
         while(not self.is_empty and self.pos == self.destination):
             self.drop_passenger()
 
-        pass_pooling, pass_normal = self.get_passengers_around()
+        #print(f'Leaving stage 1 - {self.unique_id}')
+    #Stage 2
+    def stage_2(self):
+        #print(f'Entering stage 2 - {self.unique_id}')
+        #look_around_and_notify_drivers
+        #print('Lookding around')
+        passengers = self.get_passengers_around()
 
-        #Keep picking up passengers while it is possible
-        while((self.has_free_seats_car_pooling and len(pass_pooling) > 0) or 
-              (self.has_free_seats_normal and len(pass_normal) > 0)):
+        #print('Updating local sighted_list')
+        for p in [pas for pas in passengers if pas not in self.sighted_passengers.keys()]:
+            self.sighted_passengers[p] = None
 
-            #If empty, take the passenger who is waiting longer
-            if(self.is_empty):
-                all_passengers = pass_normal + pass_pooling
+        if(len(passengers) > 0):
+            #print('Notifying other cabs')
+            for agent in [a for a in self.model.schedule.agents if isinstance(a, Cab) and a.unique_id != self.unique_id]:
+                agent.broadcast_sighted_passengers(passengers)
+
+        #print(f'Leaving stage 2 - {self.unique_id}')
+    #Stage 3
+    def stage_3(self):
+        #print(f'Entering stage 3 - {self.unique_id}')
+        #bid_for_passengers
+        if(self.has_free_seats and not self.has_passenger_assigned and len(self.unasigned_passenger) > 0):
+            dist_pass = {}
+            for p in self.unasigned_passenger:
+                distance = self.get_distance(self.pos, p.road_access)
                 
-                if(len(all_passengers) > 1):
-                    all_passengers.sort(key=lambda psg: psg.time_waiting, reverse=True)
+                if(self.has_free_seats_normal or (p.isCarPooler and self.has_free_seats_car_pooling and distance == 0)):
+                    dist_pass[p] = distance
+        
+            self.model.bid(self, dist_pass)
 
-                psg = all_passengers[0]
+        #print(f'Leaving stage 3 - {self.unique_id}')
+    #Stage 4
+    def stage_4(self):
+        #print(f'Entering stage 4 - {self.unique_id}')
+        #get_auction_results
+        self.model.update_winners()
 
-                self.pickup_passenger(psg)
+        for passenger in self.model.current_bidding_results.keys():
+            cab = self.model.current_bidding_results[passenger]
+            self.sighted_passengers[passenger] = cab
+            
+            #print(f'Cab {cab.unique_id if cab != None else "No one"} is assigned to passenger {passenger.unique_id if passenger != None else "No one"}')
 
-                if(psg.isCarPooler):
-                    pass_pooling.remove(psg)
-                else:
-                    pass_normal.remove(psg)
+        #print(f'Leaving stage 4 - {self.unique_id}')
+    #Stage 5
+    def step(self):
+        #print(f'Entering stage step - {self.unique_id}')
 
-            elif(self.car_pooling):
-                self.pickup_passenger(pass_pooling.pop(0))
-            else:
-                self.pickup_passenger(pass_normal.pop(0))
+        passassigned = self.passenger_assigned
+
+        if(passassigned != None):
+            self.destination = passassigned.road_access
+            if(self.pos == self.destination):
+                self.pickup_passenger(passassigned)
 
         #if empty and not moved, try to find a random destination
-        while(self.is_empty and self.pos == self.destination):
+        while(not self.has_passenger_assigned and self.is_empty and self.pos == self.destination):
             r = random.SystemRandom()
             possible_places = list(self.model.roads.keys())
             r.shuffle(possible_places)
@@ -99,6 +218,9 @@ class Cab(Agent):
         self.model.grid.move_agent(self, nextPos)
         self.pos = nextPos
 
+        #print(f'Last known pos = {self.pos}')
+        #print(f'Leaving stage step - {self.unique_id}')
+
     def drop_passenger(self):
         #print(f'Dropping passenger {self.passengers[0].unique_id} with destination to {self.passengers[0]} on {self.pos}')
         temp = self.passengers.pop(0)
@@ -109,18 +231,14 @@ class Cab(Agent):
     def get_passengers_around(self):
         neighbors = self.model.grid.get_neighbors(self.pos, False, include_center=False, radius=1)
 
-        pass_pooling = [obj for obj in neighbors if isinstance(obj, Passenger) and obj.isCarPooler]
-        pass_normal = [obj for obj in neighbors if isinstance(obj, Passenger) and not obj.isCarPooler]
+        passengers = [obj for obj in neighbors if isinstance(obj, Passenger)]
 
-        if(len(pass_pooling) > 1):
-            pass_pooling.sort(key=lambda psg: psg.time_waiting, reverse=True)
-        
-        if(len(pass_normal) > 1):
-            pass_normal.sort(key=lambda psg: psg.time_waiting, reverse=True)
-
-        return pass_pooling, pass_normal 
+        return passengers
 
     def pickup_passenger(self, passenger):
+        if(not self.has_free_seats):
+            raise('Cannot add any more passengers.')
+
         self.passengers.append(passenger)
         self.destination = self.passengers[0].destination
 
@@ -129,8 +247,9 @@ class Cab(Agent):
 
         self.car_pooling = passenger.isCarPooler
 
-        self.model.schedule.remove(passenger)
-        self.model.grid.remove_agent(passenger)
+        self.broadcast_pickup(passenger)
+
+        passenger.auto_remove()
 
     def prioritize_passenger_order(self):
         perm = permutations(self.passengers)
@@ -186,7 +305,10 @@ class CityModel(Model):
         super().__init__()
         self.N = N    # num of cabs
         self.grid = MultiGrid(width, height, torus=False)
-        self.schedule = RandomActivation(self)
+        
+        model_stages = ['stage_1', 'stage_2', 'stage_3', 'stage_4', 'step']
+
+        self.schedule = StagedActivation(self, model_stages, shuffle=True)
         self.roads = roads
         self.routes = routes
         self.passenger_blocks = PassengerBlocks
@@ -195,6 +317,11 @@ class CityModel(Model):
         self.passenger_population = PassengerPopulation
         self.passenger_pooling = PassengerPooling
         self.max_seats = 3
+
+        #Bidding properties
+        self.current_bidding_results = {}
+        self.all_biddings = {}
+
         
         self.datacollector = DataCollector(model_reporters={
                                            "Normal Passenger": get_average_time_normal_passenger,
@@ -208,6 +335,64 @@ class CityModel(Model):
 
         self.running = True
         self.datacollector.collect(self)
+
+    def clear_biddings(self):
+        self.current_bidding_results = None
+        self.all_biddings = {}
+
+    def update_winners(self):
+        #Check if it is the first time being called
+        if (self.current_bidding_results == None):
+            self.current_bidding_results = {}
+
+            if (len(self.all_biddings) == 0):
+                return
+        
+            passenger_assignment = {}
+
+            number_of_cabs_bidding = len(self.all_biddings)
+            first_cab = next(iter(self.all_biddings.keys()))
+
+            passengers_being_bidded = set()
+
+            for cab in self.all_biddings.keys():
+                for psg in self.all_biddings[cab].keys():
+                    passengers_being_bidded.add(psg)
+
+            number_of_passengers = len(passengers_being_bidded)
+
+            while(len(passenger_assignment) < number_of_cabs_bidding and len(passenger_assignment) < number_of_passengers):
+                passengers_all_distances = {}
+                passenger_assignment_temp = {}
+                for cab in self.all_biddings.keys():
+                    if (cab not in passenger_assignment.values()):
+                        for psg in passengers_being_bidded:
+                            if (psg not in passenger_assignment.keys()):
+                                cab_bidding_for_this_pass = psg in self.all_biddings[cab].keys()
+                                
+                                if(cab_bidding_for_this_pass):
+                                    pass_dist = self.all_biddings[cab][psg]
+                                else:
+                                    pass_dist = math.inf
+
+                                if(psg not in passengers_all_distances or passengers_all_distances[psg] > pass_dist):
+                                    passengers_all_distances[psg] = pass_dist
+                                    passenger_assignment_temp[psg] = cab if cab_bidding_for_this_pass else None
+
+                #order the passengers by the distance to the closest cab
+                passengers_all_distances = sorted(passengers_all_distances.items(), key=lambda kv: kv[1])
+
+                #get the passenger who has the closest cab
+                passenger = passengers_all_distances[0][0]
+                #get the cab
+                cab = passenger_assignment_temp[passenger]
+
+                passenger_assignment[passenger] = cab
+
+            self.current_bidding_results = passenger_assignment
+
+    def bid(self, cab, passengers_offers):
+        self.all_biddings[cab] = passengers_offers
 
     def fill_blocks_agents(self):
         for block in self.city_blocks:
@@ -231,6 +416,9 @@ class CityModel(Model):
 
     def step(self):
         self.addPassengers()
+        
+        self.clear_biddings()
+
         self.schedule.step()
         self.datacollector.collect(self)
 
@@ -257,7 +445,7 @@ class CityModel(Model):
                 destination = self.random.choice(possible_destinations)
 
             isCarPooler = random.random() < self.passenger_pooling
-            passenger = Passenger(self.unique_id_counter, self, pos, self.passenger_blocks[destination], isCarPooler)
+            passenger = Passenger(self.unique_id_counter, self, pos, self.passenger_blocks[destination], self.passenger_blocks[pos], isCarPooler)
             self.schedule.add(passenger)
             
             self.grid.place_agent(passenger, pos)
