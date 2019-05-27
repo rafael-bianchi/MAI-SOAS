@@ -1,9 +1,10 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.modules import CanvasGrid, ChartModule
-
-from .model import CityModel, Grass, Cab, Passenger
-from .utils import getRoads
+from mesa.visualization.modules import CanvasGrid, ChartModule, BarChartModule
 from mesa.visualization.UserParam import UserSettableParameter
+
+from .agents import Cab, Grass, Passenger
+from .model import CityModel
+from .utils import getRoads
 
 
 def agent_draw(agent):
@@ -13,11 +14,21 @@ def agent_draw(agent):
     if agent is None:
         pass
 
-    elif isinstance(agent, Passenger):
-        icon = "resources/images/taxi_passenger.png"
-        
+    elif isinstance(agent, Passenger): 
         if(agent.isCarPooler):
-            icon = "resources/images/taxi_passenger_blue.png"
+            if(agent.has_cab_assigned):
+                icon = "resources/images/taxi_passenger_blue_cab_assigned.png"
+            elif(agent.visualized):
+                icon = "resources/images/taxi_passenger_blue_visualized.png"
+            else:
+                icon = "resources/images/taxi_passenger_blue.png"
+        else:
+            if(agent.has_cab_assigned):
+                icon = "resources/images/taxi_passenger_black_cab_assigned.png"
+            elif(agent.visualized):
+                icon = "resources/images/taxi_passenger_black_visualized.png"
+            else:
+                icon = "resources/images/taxi_passenger.png"
 
         portrayal = {
             "Shape": icon,
@@ -104,7 +115,17 @@ def launch_city_model():
                              {"Label": "Pooling Passenger", "Color": "#0033cc"},
                              {"Label": "Average", "Color": "#990000"}])
 
-    server = ModularServer(CityModel, [grid, chart_element], "SOAS Project - Rafael Bianchi",
+    chart_element_cars_carpooling = ChartModule([{"Label": "Cars carpooling", "Color": "#0033cc"},
+                                                {"Label": "Cars not carpooling", "Color": "#000000"},
+                                                {"Label": "Empty cars", "Color": "#ffff33"}])
+
+    passengers_traveling = ChartModule([{"Label": "Passengers Travelling (not pooling)", "Color": "#000000"},
+                                                {"Label": "Passengers Travelling (pooling)", "Color": "#0033cc"},
+                                                {"Label": "Passengers Travelling", "Color": "#19ff00"}])
+
+    over_travelled = ChartModule([{"Label": "Overtravelled (in percentage)", "Color": "#990000"}]) 
+
+    server = ModularServer(CityModel, [grid, chart_element, chart_element_cars_carpooling, passengers_traveling, over_travelled], "SOAS Project - Rafael Bianchi",
                            {"N": n_slider, "PassengerPopulation":passenger_population, "PassengerPooling": passenger_pooling, "PassengerBlocks": passenger_blocks, "width": width, "height": height, "city_map": city_map, "roads": city_roads, "city_blocks": city_blocks, "routes": routes})
     server.max_steps = 0
     server.port = 8521
