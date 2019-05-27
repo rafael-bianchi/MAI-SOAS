@@ -175,7 +175,7 @@ class Cab(Agent):
             for p in self.unasigned_passenger:
                 distance = self.get_distance(self.pos, p.road_access)
                 
-                if(self.has_free_seats_normal or (p.isCarPooler and self.has_free_seats_car_pooling and distance == 0)):
+                if(self.has_free_seats_normal or (p.isCarPooler and self.has_free_seats_car_pooling and distance <= 1)):
                     dist_pass[p] = distance
         
             self.model.bid(self, dist_pass)
@@ -229,7 +229,7 @@ class Cab(Agent):
             self.destination = self.passengers[0].destination
 
     def get_passengers_around(self):
-        neighbors = self.model.grid.get_neighbors(self.pos, False, include_center=False, radius=1)
+        neighbors = self.model.grid.get_neighbors(self.pos, True, include_center=False, radius=1)
 
         passengers = [obj for obj in neighbors if isinstance(obj, Passenger)]
 
